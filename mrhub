@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+import sys
+import argparse
+import getpass
+import requests
+
+version = '%(prog)s 0.0.1'
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-p', '--password',
+                    action='store_true', dest='ask_pass',
+                    help='ask for a password on stdin')
+parser.add_argument('-o', '--organisation', default=False,
+                    action='store_true', dest='org',
+                    help='request list of repositories of an organisation')
+parser.add_argument('-c', '--clone', dest='clone', default='ssh',
+                    choices=['ssh', 'https', 'git'],
+                    help='clone via ssh/https/git [default: %(default)s]')
+parser.add_argument('-b', '--base', dest='base', default='$HOME/Devel',
+                    help='base folder for checkouts [default: %(default)s]')
+parser.add_argument('-v', '--version', action='version', version=version)
+parser.add_argument('account')
+settings = parser.parse_args()
+
+if settings.clone == 'https':
+    settings.clone = 'clone'
+if not settings.clone.endswith('_url'):
+    settings.clone = '%s_url' % settings.clone
+
+if settings.ask_pass:
+    if settings.org:
+        USER = raw_input('Username: ')
+    else:
+        USER = settings.account
+    PASS = getpass.getpass('Password: ')
+    auth = (USER, PASS)
+else:
+    auth = None
+
+if settings.org:
+    REPOS_URL = 'https://api.github.com/orgs/%(account)s/repos'
+elif settings.ask_pass:
+    REPOS_URL = 'https://api.github.com/user/repos'
+else:
+    REPOS_URL = 'https://api.github.com/users/%(account)s/repos'
+
+MR_TEMPLATE = '''[%(base)s/%(repo_name)s]
+checkout = git clone %(repo_url)s %(repo_name)s'''
+
+headers = {'User-Agent': 'evgeni/MisterHubert'}
+
+u = REPOS_URL % {'account': settings.account}
+r = requests.get(u, headers=headers, auth=auth, verify=True)
+if (r.ok):
+    repos = r.json()
+    for repo in repos:
+        print(MR_TEMPLATE % {'base': settings.base, 'repo_name': repo['name'],
+                             'repo_url': repo[settings.clone]})
+else:
+    print('Something went wrong while requesting the list of repositories '
+          'from GitHub.', file=sys.stderr)
+    print(r.content, file=sys.stderr)
+    sys.exit(1)
