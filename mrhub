@@ -51,15 +51,25 @@ checkout = git clone %(repo_url)s %(repo_name)s'''
 
 headers = {'User-Agent': 'evgeni/MisterHubert'}
 
+repo_output = []
 u = REPOS_URL % {'account': settings.account}
-r = requests.get(u, headers=headers, auth=auth, verify=True)
-if (r.ok):
-    repos = r.json()
-    for repo in repos:
-        print(MR_TEMPLATE % {'base': settings.base, 'repo_name': repo['name'],
-                             'repo_url': repo[settings.clone]})
-else:
-    print('Something went wrong while requesting the list of repositories '
-          'from GitHub.', file=sys.stderr)
-    print(r.content, file=sys.stderr)
-    sys.exit(1)
+while (u):
+    r = requests.get(u, headers=headers, auth=auth, verify=True)
+    if (r.ok):
+        repos = r.json()
+        for repo in repos:
+            data = {'base': settings.base,
+                    'repo_name': repo['name'],
+                    'repo_url': repo[settings.clone]}
+            repo_output.append(MR_TEMPLATE % data)
+        if 'next' in r.links:
+            u = r.links['next']['url']
+        else:
+            u = None
+    else:
+        print('Something went wrong while requesting the list of repositories '
+              'from GitHub.', file=sys.stderr)
+        print(r.content, file=sys.stderr)
+        sys.exit(1)
+
+print("\n\n".join(repo_output))
