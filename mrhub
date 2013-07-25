@@ -5,6 +5,7 @@ import sys
 import argparse
 import getpass
 import requests
+import re
 
 version = '%(prog)s 0.0.1'
 
@@ -21,6 +22,8 @@ parser.add_argument('-c', '--clone', dest='clone', default='ssh',
 parser.add_argument('-b', '--base', dest='base', default='$HOME/Devel',
                     help='base folder for checkouts [default: %(default)s]')
 parser.add_argument('-v', '--version', action='version', version=version)
+parser.add_argument('-x', '--exclude', action='append', dest='exclude',
+                    default=[], help='exclude repos based on regex')
 parser.add_argument('account')
 settings = parser.parse_args()
 
@@ -58,10 +61,15 @@ while (u):
     if (r.ok):
         repos = r.json()
         for repo in repos:
-            data = {'base': settings.base,
-                    'repo_name': repo['name'],
-                    'repo_url': repo[settings.clone]}
-            repo_output.append(MR_TEMPLATE % data)
+            skip = False
+            for x in settings.exclude:
+                if re.match(x, repo['name']):
+                    skip = True
+            if not skip:
+                data = {'base': settings.base,
+                        'repo_name': repo['name'],
+                        'repo_url': repo[settings.clone]}
+                repo_output.append(MR_TEMPLATE % data)
         if 'next' in r.links:
             u = r.links['next']['url']
         else:
